@@ -18,7 +18,8 @@ import { classifyAll, summarize } from '../lib/classify.ts';
 import { pickBaseline } from '../lib/window.ts';
 
 const PORT = Number(process.env.PORT ?? 3000);
-const PROJECT_ID = process.env.ZEROPS_PROJECT_ID ?? '';
+const PROJECT_ID =
+  process.env.REWIND_PROJECT_ID ?? process.env.ZEROPS_PROJECT_ID ?? '';
 
 const store = new FileSnapshotStore(process.env.REWIND_DATA_DIR);
 
