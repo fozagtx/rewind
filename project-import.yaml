@@ -1,0 +1,25 @@
+# Creates the Zerops project and the service Rewind deploys into.
+#
+#   zcli project project-import project-import.yaml
+#
+# One runtime service is all the deployed component needs — it is read only and
+# stores its snapshot chain on disk. Postgres and object storage are worth adding
+# when you want the snapshot chain to survive a container replacement, but they
+# are not required for the service to run.
+project:
+  name: rewind
+
+services:
+  - hostname: rewind
+    type: nodejs@22
+    enableSubdomainAccess: true
+    minContainers: 1
+    maxContainers: 1
+    verticalAutoscaling:
+      cpuMode: SHARED
+      minCpu: 1
+      maxCpu: 2
+      minRam: 0.25
+      maxRam: 1
+      minDisk: 1
+      maxDisk: 5

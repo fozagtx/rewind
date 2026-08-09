@@ -1,0 +1,26 @@
+zerops:
+  - setup: rewind
+    build:
+      base: nodejs@22
+      buildCommands:
+        - npm ci
+      deployFiles:
+        - src
+        - package.json
+        - package-lock.json
+        - node_modules
+        - README.md
+    run:
+      base: nodejs@22
+      ports:
+        - port: 3000
+          httpSupport: true
+      envVariables:
+        NODE_ENV: production
+        PORT: '3000'
+        REWIND_DATA_DIR: /var/www/data
+      start: npm run serve
+      healthCheck:
+        httpGet:
+          port: 3000
+          path: /health
