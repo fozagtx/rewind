@@ -42,14 +42,16 @@ npm install
 zcli login <your-token>            # Rewind reuses the token zcli stores
 export ZEROPS_PROJECT_ID=<your project id>
 
-./rewind doctor           # check the Zerops API is reachable
-./rewind snapshot         # capture project state now
-./rewind diff --to 20m    # show what changed
-./rewind --to 20m --dry-run
-./rewind --to 20m         # reverse it
+./rewind snapshot          # save a restore point
+./rewind status            # what changed since then
+./rewind undo --dry-run    # show the plan, change nothing
+./rewind undo              # put it back
+./rewind doctor            # check the Zerops API is reachable
 ```
 
 Rewind talks to the Zerops REST API directly and reuses the token `zcli login` already stores, so there is no second credential to manage. Set `ZEROPS_TOKEN` to override it.
+
+Every command works against the most recent restore point. Add `--to 20m` only when you want to reach further back than that.
 
 Run `doctor` first. It exercises every read path against your own project, so you are checking reality rather than assumptions.
 
@@ -58,18 +60,19 @@ Run `doctor` first. It exercises every read path against your own project, so yo
 Verified on 2026-08-09 against a real Zerops project, not a mock:
 
 ```
-1. snapshot                          captured baseline
-2. scaled cpuMode DEDICATED via API  drift, the way an agent causes it
-3. snapshot                          captured drifted state
-4. diff --to 10m
-     rewind  cpuMode  DEDICATED -> SHARED   REVERSED
-5. --to 10m --dry-run                1 step planned, nothing executed
-6. --to 10m                          scale rewind  OK
-7. Rewind complete. Everything in that window was reversed.
-8. independent API check             cpuMode restored to DEDICATED
+1. ./rewind snapshot        baseline captured
+2. cpuMode changed via API  drift, the way an agent causes it
+3. ./rewind undo --dry-run  1 step planned, nothing executed
+4. ./rewind undo            scale rewind  OK
+                            Rewind complete.
+5. independent API read     cpuMode restored
 ```
 
-Step 4 is also where a real bug surfaced. Zerops nests scale fields under `verticalAutoscaling`, so before this was flattened a routine scale change was classified `CANNOT_UNDO`. That is the one verdict the tool must never get wrong, and there are now regression tests covering both nesting shapes.
+Two real bugs surfaced during those live runs, and both are the kind a mock would have hidden.
+
+Zerops nests scale fields under `verticalAutoscaling`, so before flattening, a routine scale change was classified `CANNOT_UNDO`. That is the one verdict this tool must never get wrong.
+
+Worse, a dry run used to store a snapshot of the drifted state, so the next undo took that as its baseline, compared the mess against itself, and reported nothing to do. The drift stayed and the tool said everything was fine. Dry runs now record nothing, and only snapshots you asked for can be chosen as a restore point.
 
 ## How it works
 
@@ -120,8 +123,8 @@ Still unverified: request body shapes for `deleteEnv` and `importServices`. Scal
 ## Tests
 
 ```bash
-npm test          # 44 tests
+npm test          # 53 tests
 npm run typecheck
 ```
 
-Covers secret redaction, numeric comparison, deterministic ordering, every classification rule, scale call collapsing, step ordering, partial failure handling, both autoscaling nesting shapes, and the rule that a run with anything left un-reversed can never report success.
+Covers secret redaction, numeric comparison, deterministic ordering, every classification rule, scale call collapsing, step ordering, partial failure handling, both autoscaling nesting shapes, restore point selection, and the rule that a run with anything left un-reversed can never report success.

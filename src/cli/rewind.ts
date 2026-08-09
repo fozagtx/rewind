@@ -2,11 +2,14 @@
 /**
  * Rewind CLI.
  *
- *   rewind doctor                 check the Zerops API is reachable
- *   rewind snapshot               capture project state now
- *   rewind diff --to 20m          show what changed
- *   rewind --to 20m               reverse the last 20 minutes
- *   rewind --to 20m --dry-run     plan the reversal without executing it
+ *   ./rewind snapshot      save a restore point
+ *   ./rewind status        what changed since then
+ *   ./rewind undo          put it back
+ *   ./rewind undo --dry-run   show the plan, change nothing
+ *   ./rewind doctor        check the Zerops API is reachable
+ *
+ * Every command defaults to the most recent restore point. Add `--to 20m` only
+ * when you want to reach further back than that.
  *
  * Requires ZEROPS_PROJECT_ID, plus a token from `zcli login` or ZEROPS_TOKEN.
  */
@@ -52,7 +55,9 @@ async function main(): Promise<number> {
     case 'snapshot':
       return await snapshot(zerops, store, projectId);
     case 'diff':
-      return await diff(store, projectId, argv);
+    case 'status':
+      return await diff(zerops, store, projectId, argv);
+    case 'undo':
     case 'rewind':
       return await rewind(zerops, store, projectId, argv);
     default:
@@ -125,25 +130,46 @@ async function snapshot(
   return 0;
 }
 
+/**
+ * Compare the LIVE project against a stored snapshot.
+ *
+ * This reads current state rather than comparing two old snapshots, because
+ * the question you are actually asking is "what changed since I saved a restore
+ * point", and the answer has to include what is true right now.
+ */
 async function diff(
+  zerops: RestZeropsClient,
   store: FileSnapshotStore,
   projectId: string,
   argv: string[],
 ): Promise<number> {
-  const window = flagValue(argv, '--to') ?? '20m';
+  const window = flagValue(argv, '--to');
   const snaps = await store.listSnapshots(projectId);
 
-  if (snaps.length < 2) {
-    console.error(`Need at least 2 snapshots to diff; have ${snaps.length}.`);
+  if (snaps.length === 0) {
+    console.error('No restore point saved yet. Run `./rewind snapshot` first.');
     return 1;
   }
 
-  const target = pickBaseline(snaps, window);
-  const latest = snaps[snaps.length - 1];
-  if (!target || !latest) return 1;
+  const baseline = pickBaseline(snaps, window);
+  if (!baseline) return 1;
 
-  const rows = classifyAll(diffSnapshots(target, latest));
-  console.log(renderChangeset(rows, { from: target, to: latest, window }));
+  const { raw } = await zerops.exportProject(projectId);
+  const current = buildSnapshot({
+    projectId,
+    raw,
+    trigger: 'manual',
+    artifactKey: '(live, not stored)',
+  });
+
+  const rows = classifyAll(diffSnapshots(baseline, current));
+
+  if (rows.length === 0) {
+    console.log('Nothing has changed since that restore point.');
+    return 0;
+  }
+
+  console.log(renderChangeset(rows, { from: baseline, to: current, window: window ?? 'last snapshot' }));
   console.log(renderResidue(summarize(rows).residue));
   return 0;
 }
@@ -154,37 +180,43 @@ async function rewind(
   projectId: string,
   argv: string[],
 ): Promise<number> {
-  const window = flagValue(argv, '--to') ?? '20m';
+  const window = flagValue(argv, '--to');
   const dryRun = argv.includes('--dry-run');
 
   const snaps = await store.listSnapshots(projectId);
   if (snaps.length < 1) {
-    console.error('No snapshots stored. Run `rewind snapshot` first.');
+    console.error('No restore point saved yet. Run `./rewind snapshot` first.');
     return 1;
   }
 
-  // Always capture current state before reversing, so the reversal itself is
-  // reversible.
+  // Read current state. Only persist it on a real run: a dry run that stored a
+  // snapshot would record the drifted state and the next undo would take that
+  // as its baseline, concluding nothing had changed.
   const { raw } = await zerops.exportProject(projectId);
   const nowKey = store.artifactKey(projectId);
   const current = buildSnapshot({
     projectId,
     raw,
     trigger: 'pre-mutation',
-    artifactKey: nowKey,
+    artifactKey: dryRun ? '(live, not stored)' : nowKey,
   });
-  await store.putArtifact(nowKey, raw);
-  await store.putSnapshot(current);
+
+  if (!dryRun) {
+    // A real reversal records where it started, so the reversal is itself
+    // reversible.
+    await store.putArtifact(nowKey, raw);
+    await store.putSnapshot(current);
+  }
 
   const baseline = pickBaseline(snaps, window);
   if (!baseline) {
-    console.error(`No snapshot found at or before ${window} ago.`);
+    console.error(`No restore point found at or before ${String(window)} ago.`);
     return 1;
   }
 
   const rows = classifyAll(diffSnapshots(baseline, current));
   if (rows.length === 0) {
-    console.log('No infrastructure drift detected in that window.');
+    console.log('Nothing has changed since that restore point.');
     return 0;
   }
 
@@ -197,7 +229,9 @@ async function rewind(
     computedAt: new Date().toISOString(),
   };
 
-  console.log(renderChangeset(rows, { from: baseline, to: current, window }));
+  console.log(
+    renderChangeset(rows, { from: baseline, to: current, window: window ?? 'last snapshot' }),
+  );
 
   const plan = planReplay(changeset, baseline);
 

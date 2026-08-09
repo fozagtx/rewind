@@ -49,7 +49,19 @@ export interface ProjectSnapshot {
   services: Record<string, ServiceConfig>;
 }
 
+/**
+ * Why a snapshot exists.
+ *
+ * `manual` and `cron` are RESTORE POINTS, the states you can go back to.
+ * `pre-mutation` and `post-replay` are bookkeeping, written automatically so a
+ * reversal is itself reversible. Bookkeeping must never be chosen as a
+ * baseline: doing so let a dry run record the drifted state and made the next
+ * undo conclude nothing had changed.
+ */
 export type SnapshotTrigger = 'cron' | 'pre-mutation' | 'manual' | 'post-replay';
+
+/** Triggers that represent a state a human chose to be able to return to. */
+export const RESTORE_POINT_TRIGGERS: readonly SnapshotTrigger[] = ['manual', 'cron'];
 
 /**
  * Reversibility classification. This taxonomy IS the product, the kill-switch

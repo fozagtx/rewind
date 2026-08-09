@@ -27,7 +27,7 @@ export function renderChangeset(
   lines.push('');
   lines.push(
     `${BOLD}${rows.length} field${rows.length === 1 ? '' : 's'} changed across ` +
-      `${services} service${services === 1 ? '' : 's'}${RESET} ${DIM}(last ${ctx.window})${RESET}`,
+      `${services} service${services === 1 ? '' : 's'}${RESET} ${DIM}(since ${ctx.window})${RESET}`,
   );
   lines.push(`${DIM}${short(ctx.from)} → ${short(ctx.to)}${RESET}`);
   lines.push('');
