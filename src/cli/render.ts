@@ -66,7 +66,7 @@ export function renderResidue(residue: ChangeRow[]): string {
   const lines: string[] = [''];
   lines.push(`${RED}${BOLD}${'─'.repeat(64)}${RESET}`);
   lines.push(
-    `${RED}${BOLD}COULD NOT UNDO — ${residue.length} change${residue.length === 1 ? '' : 's'}${RESET}`,
+    `${RED}${BOLD}COULD NOT UNDO, ${residue.length} change${residue.length === 1 ? '' : 's'}${RESET}`,
   );
   lines.push(`${RED}${'─'.repeat(64)}${RESET}`);
 
@@ -116,7 +116,7 @@ function label(r: ChangeRow): string {
 }
 
 function fmt(v: unknown): string {
-  if (v === null || v === undefined) return '—';
+  if (v === null || v === undefined) return '-';
   if (typeof v === 'boolean') return v ? 'enabled' : 'disabled';
   return String(v);
 }

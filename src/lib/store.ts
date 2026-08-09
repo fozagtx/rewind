@@ -59,7 +59,7 @@ export class FileSnapshotStore {
       try {
         out.push(JSON.parse(await readFile(join(dir, f), 'utf8')) as ProjectSnapshot);
       } catch {
-        // A corrupt snapshot must not break the chain — skip it.
+        // A corrupt snapshot must not break the chain, skip it.
       }
     }
 

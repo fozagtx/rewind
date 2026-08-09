@@ -117,7 +117,7 @@ test('a CHANGED env var reverses to setEnv with the old value', () => {
   assert.deepEqual(step.targetValue, { key: 'LOG_LEVEL', value: 'info' });
 });
 
-test('a changed SECRET becomes residue — we never stored the old value', () => {
+test('a changed SECRET becomes residue, we never stored the old value', () => {
   const plan = planReplay(
     changeset([
       {
@@ -217,7 +217,7 @@ test('a deleted service with no stored config is pure residue', () => {
   assert.match(plan.residue[0]?.reason ?? '', /no snapshot of its configuration/i);
 });
 
-test('a created service is NOT auto-deleted — it becomes residue', () => {
+test('a created service is NOT auto-deleted, it becomes residue', () => {
   const plan = planReplay(
     changeset([{ service: 'cache', field: SERVICE_FIELD, before: null, after: 'created' }]),
   );

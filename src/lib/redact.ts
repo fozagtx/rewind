@@ -1,5 +1,5 @@
 /**
- * Redaction — a hard security boundary.
+ * Redaction, a hard security boundary.
  *
  * Env var values are live credentials. A leaked DATABASE_URL in a demo
  * screenshot is a real failure, so no raw secret value ever reaches a

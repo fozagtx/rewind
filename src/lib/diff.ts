@@ -1,5 +1,5 @@
 /**
- * Diff — compute field-level changes between two project snapshots.
+ * Diff, compute field-level changes between two project snapshots.
  *
  * Output ordering is deterministic so two runs on identical input produce
  * byte-identical changesets. That property is what makes a snapshot chain
@@ -25,7 +25,7 @@ export function diffSnapshots(from: ProjectSnapshot, to: ProjectSnapshot): Chang
     const after = to.services[hostname];
 
     if (before && !after) {
-      // Service deletion — the highest-stakes case in the whole tool.
+      // Service deletion, the highest-stakes case in the whole tool.
       rows.push({
         service: hostname,
         field: SERVICE_FIELD,

@@ -45,7 +45,7 @@ test('env changes need a restart', () => {
   );
 });
 
-test('HA mode cannot be undone — zerops_scale cannot write it', () => {
+test('HA mode cannot be undone, zerops_scale cannot write it', () => {
   const r = classifyRow(row({ field: 'mode', before: 'NON_HA', after: 'HA' }));
   assert.equal(r.verdict, 'CANNOT_UNDO');
   assert.match(r.reason ?? '', /fixed at service creation/i);
@@ -79,7 +79,7 @@ test('service creation is reversible', () => {
   assert.equal(r.verdict, 'REVERSIBLE');
 });
 
-test('unknown fields default to CANNOT_UNDO — never claim a reversal we cannot do', () => {
+test('unknown fields default to CANNOT_UNDO, never claim a reversal we cannot do', () => {
   const r = classifyRow(row({ field: 'someFutureZeropsField' }));
   assert.equal(r.verdict, 'CANNOT_UNDO');
   assert.match(r.reason ?? '', /no known mutation tool writes it/i);

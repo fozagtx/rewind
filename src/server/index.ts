@@ -1,5 +1,5 @@
 /**
- * Rewind HTTP service — read only.
+ * Rewind HTTP service, read only.
  *
  * This process never mutates infrastructure. It serves the health check that
  * `zerops.yaml` probes, plus the stored snapshot chain and the current
@@ -11,8 +11,7 @@
  */
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { McpClient } from '../lib/mcp.ts';
-import { createZeropsClient } from '../lib/zerops.ts';
+import { createRestClient, type RestZeropsClient } from '../lib/rest.ts';
 import { FileSnapshotStore } from '../lib/store.ts';
 import { diffSnapshots } from '../lib/diff.ts';
 import { classifyAll, summarize } from '../lib/classify.ts';
@@ -22,13 +21,15 @@ const PORT = Number(process.env.PORT ?? 3000);
 const PROJECT_ID = process.env.ZEROPS_PROJECT_ID ?? '';
 
 const store = new FileSnapshotStore(process.env.REWIND_DATA_DIR);
-const mcp = new McpClient({
-  command: process.env.ZCP_COMMAND ?? 'zcp',
-  args: (process.env.ZCP_ARGS ?? 'mcp').split(' ').filter(Boolean),
-});
-const zerops = createZeropsClient({ mcp });
 
-let mcpReady = false;
+/**
+ * Null until a token is available. The service must still serve health and the
+ * stored snapshot chain without one, so this is resolved lazily rather than at
+ * import time.
+ */
+let zerops: RestZeropsClient | null = null;
+let apiReady = false;
+let apiError = '';
 
 function json(res: ServerResponse, code: number, body: unknown): void {
   res.writeHead(code, {
@@ -48,13 +49,14 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   const url = new URL(req.url ?? '/', `http://localhost:${PORT}`);
   const route = `${req.method} ${url.pathname}`;
 
-  // Health must not depend on the MCP server being reachable. If it did, a ZCP
+  // Health must not depend on the Zerops API being reachable. If it did, an API
   // outage would fail the readiness probe, and Zerops would delete and recreate
   // this container every five minutes in a loop.
   if (route === 'GET /health') {
     json(res, 200, {
       status: 'ok',
-      mcpReady,
+      apiReady,
+      ...(apiError ? { apiError } : {}),
       projectConfigured: PROJECT_ID !== '',
       mutating: false,
     });
@@ -90,8 +92,11 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
       return;
     }
 
-    if (!mcpReady) {
-      json(res, 503, { error: 'ZCP MCP is unreachable, so current state cannot be read.' });
+    if (!zerops) {
+      json(res, 503, {
+        error: 'No Zerops token available, so current state cannot be read.',
+        detail: apiError,
+      });
       return;
     }
 
@@ -127,7 +132,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
     res.end(
       [
-        'Rewind — undo the last twenty minutes of infrastructure.',
+        'Rewind, undo the last twenty minutes of infrastructure.',
         '',
         'Zerops keeps your last 10 application versions.',
         'It keeps zero versions of your infrastructure state.',
@@ -151,22 +156,28 @@ async function start(): Promise<void> {
   await store.init();
 
   try {
-    await mcp.start();
-    mcpReady = true;
+    zerops = createRestClient();
+    apiReady = true;
   } catch (err) {
-    // Serve health and stored snapshots even when ZCP is unreachable.
-    console.error(`ZCP MCP unavailable: ${(err as Error).message}`);
+    // Serve health and stored snapshots even with no token configured.
+    apiError = (err as Error).message;
+    console.error(`Zerops API unavailable: ${apiError}`);
   }
 
   server.listen(PORT, () => {
-    console.log(`Rewind listening on :${PORT}  mcpReady=${mcpReady}  read-only`);
+    console.log(`Rewind listening on :${PORT}  apiReady=${apiReady}  read-only`);
+
+    // Zerops injects the generated public hostname. Print it so the live URL is
+    // discoverable from the runtime log instead of guessed.
+    const subdomain = process.env.zeropsSubdomain ?? process.env.ZEROPS_SUBDOMAIN;
+    if (subdomain) console.log(`Public URL: ${subdomain}`);
   });
 }
 
 for (const signal of ['SIGTERM', 'SIGINT'] as const) {
   process.on(signal, () => {
     server.close();
-    void mcp.stop().finally(() => process.exit(0));
+    process.exit(0);
   });
 }
 

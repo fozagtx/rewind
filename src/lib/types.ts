@@ -1,5 +1,5 @@
 /**
- * Rewind — core domain contract.
+ * Rewind, core domain contract.
  *
  * Every module codes against these types. Do not redefine them locally.
  *
@@ -23,7 +23,7 @@ export interface ServiceConfig {
   maxDisk?: number;
   minContainers?: number;
   maxContainers?: number;
-  /** HA | NON_HA — fixed at service creation, NOT changeable. */
+  /** HA | NON_HA, fixed at service creation, NOT changeable. */
   mode?: string;
   /** Env vars as declared. Values are secrets: never log, never render raw. */
   envSecrets?: Record<string, string>;
@@ -52,7 +52,7 @@ export interface ProjectSnapshot {
 export type SnapshotTrigger = 'cron' | 'pre-mutation' | 'manual' | 'post-replay';
 
 /**
- * Reversibility classification. This taxonomy IS the product — the kill-switch
+ * Reversibility classification. This taxonomy IS the product, the kill-switch
  * wedge dies of partial reversal creating false confidence, so honesty about
  * residue is the feature, not a caveat.
  */
@@ -73,7 +73,7 @@ export interface ChangeRow {
   /** null means it was deleted. */
   after: unknown;
   /**
-   * Absent until `classify` runs — `diff` produces unclassified rows. Every row
+   * Absent until `classify` runs, `diff` produces unclassified rows. Every row
    * reaching replay has passed through classifyAll, which always sets it.
    */
   verdict?: Verdict;
@@ -139,7 +139,7 @@ export interface ReplayResult {
   finishedAt?: string;
 }
 
-/** Async platform operation handle — Zerops mutations are not instantaneous. */
+/** Async platform operation handle, Zerops mutations are not instantaneous. */
 export interface ProcessHandle {
   processId: string;
   status: 'pending' | 'running' | 'finished' | 'failed';

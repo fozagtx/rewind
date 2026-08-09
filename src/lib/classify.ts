@@ -1,5 +1,5 @@
 /**
- * Classify — decide, per changed field, whether Rewind can actually undo it.
+ * Classify, decide, per changed field, whether Rewind can actually undo it.
  *
  * This module IS the product. The kill-switch wedge dies of partial reversal
  * creating false confidence, so honesty about residue is the feature and not a
@@ -66,7 +66,7 @@ function decide(row: ChangeRow): { verdict: Verdict; reason?: string } {
       return { verdict: 'CANNOT_UNDO', reason: SERVICE_DELETED_REASON };
     }
     // Service was added. Reversing means deleting it, which the planner
-    // deliberately refuses to automate — but the change itself is reversible.
+    // deliberately refuses to automate, but the change itself is reversible.
     return { verdict: 'REVERSIBLE' };
   }
 

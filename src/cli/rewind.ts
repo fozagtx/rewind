@@ -2,17 +2,16 @@
 /**
  * Rewind CLI.
  *
- *   rewind doctor                 verify the MCP tool surface is reachable
+ *   rewind doctor                 check the Zerops API is reachable
  *   rewind snapshot               capture project state now
- *   rewind diff [--from --to]     show what changed between two snapshots
+ *   rewind diff --to 20m          show what changed
  *   rewind --to 20m               reverse the last 20 minutes
  *   rewind --to 20m --dry-run     plan the reversal without executing it
  *
- * Requires: ZEROPS_PROJECT_ID, and a reachable `zcp` binary.
+ * Requires ZEROPS_PROJECT_ID, plus a token from `zcli login` or ZEROPS_TOKEN.
  */
 
-import { McpClient } from '../lib/mcp.ts';
-import { createZeropsClient } from '../lib/zerops.ts';
+import { createRestClient, type RestZeropsClient } from '../lib/rest.ts';
 import { buildSnapshot } from '../lib/snapshot.ts';
 import { diffSnapshots } from '../lib/diff.ts';
 import { classifyAll, summarize } from '../lib/classify.ts';
@@ -39,74 +38,77 @@ async function main(): Promise<number> {
   const store = new FileSnapshotStore(process.env.REWIND_DATA_DIR);
   await store.init();
 
-  const mcp = new McpClient({
-    command: process.env.ZCP_COMMAND ?? 'zcp',
-    args: (process.env.ZCP_ARGS ?? 'mcp').split(' ').filter(Boolean),
-  });
-
+  let zerops: RestZeropsClient;
   try {
-    await mcp.start();
+    zerops = createRestClient();
   } catch (err) {
-    console.error(`Could not start the ZCP MCP server: ${(err as Error).message}`);
-    console.error('Set ZCP_COMMAND if the binary is named differently.');
+    console.error((err as Error).message);
     return 3;
   }
 
-  const zerops = createZeropsClient({ mcp });
-
-  try {
-    switch (command) {
-      case 'doctor':
-        return await doctor(zerops, projectId);
-      case 'snapshot':
-        return await snapshot(zerops, store, projectId);
-      case 'diff':
-        return await diff(store, projectId, argv);
-      case 'rewind':
-        return await rewind(zerops, store, projectId, argv);
-      default:
-        console.error(`Unknown command: ${command}`);
-        return 2;
-    }
-  } finally {
-    await mcp.stop();
+  switch (command) {
+    case 'doctor':
+      return await doctor(zerops, projectId);
+    case 'snapshot':
+      return await snapshot(zerops, store, projectId);
+    case 'diff':
+      return await diff(store, projectId, argv);
+    case 'rewind':
+      return await rewind(zerops, store, projectId, argv);
+    default:
+      console.error(`Unknown command: ${command}`);
+      return 2;
   }
 }
 
-async function doctor(
-  zerops: ReturnType<typeof createZeropsClient>,
-  projectId: string,
-): Promise<number> {
-  const tools = await zerops.listAvailableTools();
-  const required = [
-    'zerops_export',
-    'zerops_discover',
-    'zerops_scale',
-    'zerops_env',
-    'zerops_subdomain',
-    'zerops_manage',
-    'zerops_import',
-    'zerops_process',
-  ];
+/**
+ * Exercise every read path Rewind depends on against the real project, so
+ * reachability is proven rather than assumed. Nothing here mutates anything.
+ */
+async function doctor(zerops: RestZeropsClient, projectId: string): Promise<number> {
+  let failed = 0;
 
-  console.log(`${BOLD}MCP tools exposed${RESET} (${tools.length})`);
-  for (const t of tools) console.log(`  ${t}`);
+  const step = async (label: string, fn: () => Promise<string>): Promise<void> => {
+    try {
+      console.log(`  ok    ${label}: ${await fn()}`);
+    } catch (err) {
+      console.log(`  FAIL  ${label}: ${(err as Error).message}`);
+      failed += 1;
+    }
+  };
 
-  const missing = required.filter((r) => !tools.includes(r));
+  console.log(`${BOLD}Zerops API reachability${RESET}`);
+  console.log(`${DIM}  project ${projectId}${RESET}`);
+
+  await step('list services', async () => {
+    const services = await zerops.listServices(projectId);
+    return services.join(', ') || '(none)';
+  });
+
+  await step('export project', async () => {
+    const { raw, services } = await zerops.exportProject(projectId);
+    return `${raw.length} bytes, ${Object.keys(services).length} services parsed`;
+  });
+
+  await step('resolve service id', async () => {
+    const [first] = await zerops.listServices(projectId);
+    if (!first) return 'skipped, no services';
+    const id = await zerops.resolveServiceId(projectId, first);
+    return id ? `${first} resolves` : `${first} did NOT resolve`;
+  });
+
   console.log('');
-  if (missing.length > 0) {
-    console.log(`Missing tools Rewind depends on: ${missing.join(', ')}`);
+  if (failed > 0) {
+    console.log(`${failed} check(s) failed. Rewind cannot run reliably.`);
     return 1;
   }
-  console.log('All required tools are present.');
-
-  const services = await zerops.listServices(projectId);
-  console.log(`Services in project: ${services.join(', ') || '(none found)'}`);
+  console.log('All read paths reachable. Snapshot and diff will work.');
+  console.log(`${DIM}Write paths are exercised only by an actual rewind.${RESET}`);
   return 0;
 }
 
 async function snapshot(
-  zerops: ReturnType<typeof createZeropsClient>,
+  zerops: RestZeropsClient,
   store: FileSnapshotStore,
   projectId: string,
 ): Promise<number> {
@@ -147,7 +149,7 @@ async function diff(
 }
 
 async function rewind(
-  zerops: ReturnType<typeof createZeropsClient>,
+  zerops: RestZeropsClient,
   store: FileSnapshotStore,
   projectId: string,
   argv: string[],
@@ -200,7 +202,7 @@ async function rewind(
   const plan = planReplay(changeset, baseline);
 
   if (dryRun) {
-    console.log(`\n${BOLD}Dry run${RESET} — ${plan.steps.length} step(s) planned, nothing executed.`);
+    console.log(`\n${BOLD}Dry run${RESET}, ${plan.steps.length} step(s) planned, nothing executed.`);
     for (const s of plan.steps) {
       console.log(`  ${s.ordinal + 1}. ${s.operation} ${s.service} ${DIM}${s.field}${RESET}`);
     }

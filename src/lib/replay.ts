@@ -1,5 +1,5 @@
 /**
- * Replay — plan and execute the inverse of a changeset.
+ * Replay, plan and execute the inverse of a changeset.
  *
  * The core discipline, and the reason this file is worth reading:
  * `complete` is true ONLY when residue is empty AND every step succeeded.
@@ -48,11 +48,11 @@ const SERVICE_ADDED_RESIDUE_REASON =
  * quiet about that would be lying by omission.
  */
 const DATA_LOSS_REASON =
-  'Configuration restored from snapshot. The data it held is gone — deleting a ' +
+  'Configuration restored from snapshot. The data it held is gone, deleting a ' +
   'service destroys its volume, and no export contains it.';
 
 /**
- * Build the reversal plan. `targetValue` is always the row's `before` value —
+ * Build the reversal plan. `targetValue` is always the row's `before` value ,
  * we are restoring the earlier state, not re-applying the change.
  */
 export function planReplay(
@@ -70,7 +70,7 @@ export function planReplay(
   for (const row of changeset.rows) {
     // Service deletion is handled BEFORE the CANNOT_UNDO check, because it is
     // the one case that is partially reversible: the configuration can be
-    // recreated from snapshot, and the data cannot. Rewind does both halves —
+    // recreated from snapshot, and the data cannot. Rewind does both halves ,
     // it restores what it can and reports what it could not. Checking the
     // verdict first would make the recreate path unreachable.
     if (row.field === SERVICE_FIELD && row.after === null) {
@@ -216,7 +216,7 @@ export interface ExecuteOptions {
 
 /**
  * Execute the plan. Steps for one service run in order; different services
- * proceed concurrently. A failed step never aborts its siblings — partial
+ * proceed concurrently. A failed step never aborts its siblings, partial
  * progress must stay visible and resumable.
  */
 export async function executeReplay(

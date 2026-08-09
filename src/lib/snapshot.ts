@@ -1,5 +1,5 @@
 /**
- * Snapshot — capture declarative Zerops project state as an immutable artifact.
+ * Snapshot, capture declarative Zerops project state as an immutable artifact.
  *
  * Zerops project export "matches the import structure and feeds straight back
  * into" import, so the export -> mutate -> export -> replay loop uses a
@@ -18,7 +18,7 @@ import type { ProjectSnapshot, ServiceConfig, SnapshotTrigger } from './types.ts
  *   project: {...}
  *   services: [ ... ]
  *
- * Unknown fields are preserved verbatim on the index signature — they are
+ * Unknown fields are preserved verbatim on the index signature, they are
  * needed to recreate a deleted service faithfully.
  */
 export function parseExport(raw: string): Record<string, ServiceConfig> {
@@ -81,6 +81,51 @@ const RAW_ENV_KEYS = [
   'envSecrets',
 ] as const;
 
+/**
+ * Scale fields live nested under `verticalAutoscaling` in project export, and
+ * under `customAutoscaling.verticalAutoscaling` in the service API. Flatten
+ * both onto the service so the diff produces one row per field.
+ *
+ * Verified against a live project on 2026-08-09: leaving them nested made the
+ * classifier treat every scale change as an unknown field, which meant a
+ * routine scale-up was reported as impossible to undo. The whole tool hinges on
+ * that verdict, so it has to be right.
+ */
+const SCALE_FIELD_NAMES = [
+  'cpuMode',
+  'minCpu',
+  'maxCpu',
+  'minRam',
+  'maxRam',
+  'minDisk',
+  'maxDisk',
+] as const;
+
+function flattenScale(svc: ServiceConfig, rec: Record<string, unknown>): void {
+  const nested =
+    asRecord(rec.verticalAutoscaling) ??
+    asRecord(asRecord(rec.customAutoscaling)?.verticalAutoscaling);
+
+  if (nested) {
+    for (const field of SCALE_FIELD_NAMES) {
+      const v = nested[field];
+      if (v !== undefined && v !== null) (svc as Record<string, unknown>)[field] = v;
+    }
+  }
+
+  // Remove the containers so no un-flattened copy is left for the generic diff
+  // to walk as an opaque object.
+  delete (svc as Record<string, unknown>).verticalAutoscaling;
+  delete (svc as Record<string, unknown>).customAutoscaling;
+  delete (svc as Record<string, unknown>).currentAutoscaling;
+}
+
+function asRecord(v: unknown): Record<string, unknown> | undefined {
+  return v && typeof v === 'object' && !Array.isArray(v)
+    ? (v as Record<string, unknown>)
+    : undefined;
+}
+
 function normalizeService(rec: Record<string, unknown>, hostname: string): ServiceConfig {
   const svc: ServiceConfig = { hostname, type: '' };
 
@@ -104,6 +149,8 @@ function normalizeService(rec: Record<string, unknown>, hostname: string): Servi
 
   if (env) svc.env = env;
   if (secrets) svc.envSecrets = secrets;
+
+  flattenScale(svc, rec);
 
   const subdomain = rec.enableSubdomainAccess ?? rec.subdomainAccess;
   if (typeof subdomain === 'boolean') svc.subdomainAccess = subdomain;
