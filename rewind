@@ -1,0 +1,12 @@
+#!/usr/bin/env sh
+# Run Rewind without npm and without a global install.
+#
+#   ./rewind doctor
+#   ./rewind snapshot
+#   ./rewind diff --to 20m
+#   ./rewind --to 20m
+#
+# Resolves the project's own tsx and entrypoint relative to this file, so it
+# works from any directory rather than only from the project root.
+DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec "$DIR/node_modules/.bin/tsx" "$DIR/src/cli/rewind.ts" "$@"

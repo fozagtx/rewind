@@ -148,7 +148,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
         'GET /api/changeset?window=20m',
         '',
         'This service is read only. Rewinding runs from the CLI:',
-        '  npm run rewind -- --to 20m',
+        '  ./rewind --to 20m',
         '',
       ].join('\n'),
     );

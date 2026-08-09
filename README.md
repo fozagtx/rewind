@@ -42,11 +42,11 @@ npm install
 zcli login <your-token>            # Rewind reuses the token zcli stores
 export ZEROPS_PROJECT_ID=<your project id>
 
-npm run rewind -- doctor           # check the Zerops API is reachable
-npm run rewind -- snapshot         # capture project state now
-npm run rewind -- diff --to 20m    # show what changed
-npm run rewind -- --to 20m --dry-run
-npm run rewind -- --to 20m         # reverse it
+./rewind doctor           # check the Zerops API is reachable
+./rewind snapshot         # capture project state now
+./rewind diff --to 20m    # show what changed
+./rewind --to 20m --dry-run
+./rewind --to 20m         # reverse it
 ```
 
 Rewind talks to the Zerops REST API directly and reuses the token `zcli login` already stores, so there is no second credential to manage. Set `ZEROPS_TOKEN` to override it.
