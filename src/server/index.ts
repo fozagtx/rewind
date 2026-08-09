@@ -128,8 +128,8 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
       residue: summary.residue,
       hint:
         summary.residue.length > 0
-          ? 'Some changes cannot be undone. Run `rewind --to <window>` to reverse the rest.'
-          : 'Everything in this window is reversible. Run `rewind --to <window>`.',
+          ? 'Some changes cannot be undone. Run `./rewind undo` to reverse the rest.'
+          : 'Everything here is reversible. Run `./rewind undo`.',
     });
     return;
   }
@@ -148,7 +148,9 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
         'GET /api/changeset?window=20m',
         '',
         'This service is read only. Rewinding runs from the CLI:',
-        '  ./rewind --to 20m',
+        '  ./rewind snapshot     save a restore point',
+        '  ./rewind status       what changed since then',
+        '  ./rewind undo         put it back',
         '',
       ].join('\n'),
     );
