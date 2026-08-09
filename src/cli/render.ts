@@ -60,7 +60,7 @@ export function renderChangeset(
  */
 export function renderResidue(residue: ChangeRow[]): string {
   if (residue.length === 0) {
-    return `\n${GREEN}Nothing was irreversible in this window.${RESET}`;
+    return `\n${GREEN}Everything here can be undone.${RESET}`;
   }
 
   const lines: string[] = [''];
@@ -97,12 +97,18 @@ export function renderReplayProgress(step: ReplayStep): string {
   }
 }
 
+/**
+ * The verdict says whether a change CAN be undone. It must never read as
+ * though it already was: `status` prints this table before anything has run,
+ * and a row claiming REVERSED when the drift is still live is exactly the
+ * false confidence this tool exists to prevent.
+ */
 function verdictLabel(r: ChangeRow): string {
   switch (r.verdict) {
     case 'REVERSIBLE':
-      return `${GREEN}REVERSED${RESET}`;
+      return `${GREEN}CAN UNDO${RESET}`;
     case 'REVERSIBLE_WITH_RESTART':
-      return `${GREEN}REVERSED${RESET} ${DIM}(restart)${RESET}`;
+      return `${GREEN}CAN UNDO${RESET} ${DIM}(needs restart)${RESET}`;
     case 'CANNOT_UNDO':
       return `${RED}${BOLD}CANNOT UNDO${RESET}`;
     default:

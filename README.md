@@ -55,6 +55,28 @@ Every command works against the most recent restore point. Add `--to 20m` only w
 
 Run `doctor` first. It exercises every read path against your own project, so you are checking reality rather than assumptions.
 
+## What it looks like
+
+Every image below is real captured output from the commands above, run against a live Zerops project. Nothing is mocked or typeset by hand.
+
+**Save a restore point, then see what drifted.**
+
+![rewind status](docs/img/status.svg)
+
+**Check the plan before touching anything.**
+
+![rewind undo --dry-run](docs/img/dryrun.svg)
+
+**Put it back.**
+
+![rewind undo](docs/img/undo.svg)
+
+**And confirm the API is reachable before you rely on any of it.**
+
+![rewind doctor](docs/img/doctor.svg)
+
+The verdict column says whether a change *can* be undone, never that it already was. `status` prints before anything runs, and a row claiming success while the drift is still live is the exact false confidence this tool exists to prevent.
+
 ## Proven against a live project
 
 Verified on 2026-08-09 against a real Zerops project, not a mock:
@@ -73,6 +95,8 @@ Two real bugs surfaced during those live runs, and both are the kind a mock woul
 Zerops nests scale fields under `verticalAutoscaling`, so before flattening, a routine scale change was classified `CANNOT_UNDO`. That is the one verdict this tool must never get wrong.
 
 Worse, a dry run used to store a snapshot of the drifted state, so the next undo took that as its baseline, compared the mess against itself, and reported nothing to do. The drift stayed and the tool said everything was fine. Dry runs now record nothing, and only snapshots you asked for can be chosen as a restore point.
+
+A third one surfaced while capturing the screenshots above: the verdict column read `REVERSED` in `status`, before anything had run. Seeing it in a still image made it obvious that it claimed work the tool had not done. It reads `CAN UNDO` now.
 
 ## How it works
 
@@ -125,6 +149,12 @@ Still unverified: request body shapes for `deleteEnv` and `importServices`. Scal
 ```bash
 npm test          # 53 tests
 npm run typecheck
+```
+
+Screenshots are regenerated from real captured runs, never hand-edited:
+
+```bash
+node --import tsx scripts/capture-svg.ts <capture.txt> docs/img/<name>.svg "title"
 ```
 
 Covers secret redaction, numeric comparison, deterministic ordering, every classification rule, scale call collapsing, step ordering, partial failure handling, both autoscaling nesting shapes, restore point selection, and the rule that a run with anything left un-reversed can never report success.
