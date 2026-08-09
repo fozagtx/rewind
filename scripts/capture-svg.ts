@@ -92,7 +92,16 @@ function parseLine(line: string, carried: Style): { spans: Span[]; endStyle: Sty
   return { spans, endStyle: style };
 }
 
-export function renderSvg(raw: string, title: string): string {
+/**
+ * `minHeight` and `minWidth` pad the frame so two captures placed side by side
+ * in a README line up. Without it, a 262px shot next to a 362px one reads as a
+ * broken grid.
+ */
+export function renderSvg(
+  raw: string,
+  title: string,
+  opts: { minHeight?: number; minWidth?: number } = {},
+): string {
   const lines = raw
     .replace(/\x1b\][^\x07]*\x07/g, '')
     .split('\n')
@@ -105,9 +114,12 @@ export function renderSvg(raw: string, title: string): string {
     return Math.max(n, visible);
   }, title.length + 6);
 
-  const width = Math.ceil(widest * CHAR_W + PAD * 2);
+  const width = Math.max(opts.minWidth ?? 0, Math.ceil(widest * CHAR_W + PAD * 2));
   const chromeH = 38;
-  const height = Math.ceil(lines.length * LINE_H + PAD * 2 + chromeH);
+  const height = Math.max(
+    opts.minHeight ?? 0,
+    Math.ceil(lines.length * LINE_H + PAD * 2 + chromeH),
+  );
 
   const body: string[] = [];
   let carried: Style = { color: FG, bold: false, dim: false };
@@ -150,11 +162,35 @@ export function renderSvg(raw: string, title: string): string {
 `;
 }
 
-const [, , inPath, outPath, ...titleParts] = process.argv;
+const argv = process.argv.slice(2);
+
+function flag(name: string): number | undefined {
+  const i = argv.indexOf(name);
+  const v = i >= 0 ? argv[i + 1] : undefined;
+  return v === undefined ? undefined : Number(v);
+}
+
+const minHeight = flag('--min-height');
+const minWidth = flag('--min-width');
+
+// Drop flags and the values that follow them, leaving input, output, title.
+const positional = argv.filter(
+  (a, i) => !a.startsWith('--') && !(argv[i - 1] ?? '').startsWith('--'),
+);
+
+const [inPath, outPath, ...titleParts] = positional;
 if (!inPath || !outPath) {
-  console.error('usage: capture-svg.ts <input> <output.svg> [title]');
+  console.error(
+    'usage: capture-svg.ts <input> <output.svg> [title] [--min-height N] [--min-width N]',
+  );
   process.exit(2);
 }
 
-writeFileSync(outPath, renderSvg(readFileSync(inPath, 'utf8'), titleParts.join(' ') || 'rewind'));
+writeFileSync(
+  outPath,
+  renderSvg(readFileSync(inPath, 'utf8'), titleParts.join(' ') || 'rewind', {
+    minHeight,
+    minWidth,
+  }),
+);
 console.log(`wrote ${outPath}`);
