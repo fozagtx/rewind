@@ -63,8 +63,13 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     return;
   }
 
-  if (!PROJECT_ID) {
-    json(res, 503, { error: 'ZEROPS_PROJECT_ID is not set' });
+  // Only the data routes need a project. The landing page must always render,
+  // otherwise a missing env var makes the deployment look dead when it is not.
+  if (!PROJECT_ID && url.pathname.startsWith('/api/')) {
+    json(res, 503, {
+      error: 'ZEROPS_PROJECT_ID is not set',
+      fix: 'Set it on this service in the Zerops GUI under Environment variables.',
+    });
     return;
   }
 

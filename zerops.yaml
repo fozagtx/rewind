@@ -19,6 +19,9 @@ zerops:
         NODE_ENV: production
         PORT: '3000'
         REWIND_DATA_DIR: /var/www/data
+        # The project this deployment reports on. Zerops injects its own id,
+        # so the service describes itself with no manual wiring.
+        ZEROPS_PROJECT_ID: ${projectId}
       start: npm run serve
       healthCheck:
         httpGet:
